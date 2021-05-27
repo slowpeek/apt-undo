@@ -1,0 +1,90 @@
+
+* Why
+
+The main idea behind the script is when you quickly install, use and
+uninstall some package with =apt= like this:
+
+#+begin_example
+  $ apt install some-pkg -y
+  ...
+  $ apt purge --autoremove some-pkg
+#+end_example
+
+there could be leftovers. It happens because some of the deps
+installed along with the package are known as recommended or suggested
+deps for some other packages in the system hence it can't be
+autoremoved. For example
+
+#+begin_example
+  $ apt install alien -y
+  Reading package lists... Done
+  Building dependency tree
+  Reading state information... Done
+  The following additional packages will be installed:
+    ...
+  Suggested packages:
+    ...
+  The following NEW packages will be installed:
+    ...
+  0 upgraded, 30 newly installed, 0 to remove and 0 not upgraded.
+  ...
+
+  $ apt purge --autoremove alien
+  Reading package lists... Done
+  Building dependency tree
+  Reading state information... Done
+  The following packages will be REMOVED:
+    ...
+  0 upgraded, 0 newly installed, 9 to remove and 0 not upgraded.
+#+end_example
+
+Notice 30 packages were installed while only 9 are to be removed.
+
+=apt-undo= solves the problem providing the exact list of installed
+packages for an install event from =apt= log. The generic routine
+looks like this:
+
+#+begin_example
+  $ apt install some-pkg
+    ...
+  $ apt-undo.sh -i1 | xargs apt purge
+#+end_example
+
+Example for the above mentioned =alien= package install event:
+
+#+begin_example
+  $ apt-undo -i1 | xargs apt purge
+  Total number of packages: 30
+  Reading package lists... Done
+  Building dependency tree
+  Reading state information... Done
+  The following packages will be REMOVED:
+    ...
+  0 upgraded, 0 newly installed, 30 to remove and 0 not upgraded.
+#+end_example
+
+Notice the script says "Total number of packages: 30" and =apt= says
+"30 to remove".
+
+The script could be safely used to "pop" a series of install events
+off =apt= "stack" like =apt-undo -i1=, then =apt-undo -i2= and then
+=apt-undo -i3=. But using it with a random install event caution
+should be taken since some packages installed after the event could
+depend on it or its deps. Hence blindly undoing the event could remove
+more packages. At least be sure to check if "Total number of packages:
+X" and =apt='s "Y to remove" show the same number.
+
+* Options
+
+By default =apt-undo= shows numbered summaries for all install events
+from =apt= log.
+
++ -iN :: Pick =N='th install event from =apt= log. =N=1= for the most
+  recent event.
++ -f <file> :: Use a custom log instead of
+  =/var/log/apt/history.log=. It could be used for example when apt
+  log got rotated like this:
+  #+begin_example
+    zcat /var/log/apt/history.log.1.gz | apt-undo.sh -f-
+  #+end_example
++ -q :: Suppress total number of packages message.
