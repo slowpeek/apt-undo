@@ -3,10 +3,10 @@
 # Walk backwards through "^Install: " lines in apt log and show
 # numbered summaries of installed packages per action. With "-iN" show
 # a full list of installed packages for the line N. Add "-q" to
-# suppress "Total packages to remove: .." message. The message is
-# written to stderr so it doesnt corrupt the package list anyways.
+# suppress total number of packages message. The message is written to
+# stderr so it doesnt corrupt the package list anyways.
 #
-# Example: get list of packages to undo last apt install
+# Example: get list of packages to remove to undo last apt install
 #
 #     apt-undo.sh -i1
 #
@@ -20,12 +20,11 @@ usage () {
     grep . <<EOF
 ${0##*/} [-iN] [-q] [-f <path>] [-h]
 
->> use -iN to pick index N quick
+>> use -iN to show full list of packages for line N
 
 >> use -f <path> to supply custom log. '-' states for stdin
 
->> use -q to suppress number of packages to remove so along with -iN
-only packages to remove are dumped
+>> use -q with -iN to suppress total number of packages message
 
 EOF
 
@@ -127,7 +126,7 @@ main () {
             fi
 
             if [[ -z $quiet ]]; then
-                echo Total packages to remove: $(narg $line) >&2
+                echo Total number of packages: $(narg $line) >&2
             fi
 
             echo $line
