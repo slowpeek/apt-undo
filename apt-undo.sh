@@ -17,14 +17,15 @@ bye () {
 }
 
 usage () {
-    grep . <<EOF
-${0##*/} [-iN] [-q] [-f <path>] [-h]
+    cat <<EOF
+${0##*/} [-iN] [-q] [-zN | -f <path>] [-h]
 
 >> use -iN to show full list of packages for line N
-
 >> use -f <path> to supply custom log. '-' states for stdin
-
+>> use -zN to operate on N'th rotated log in default location
 >> use -q with -iN to suppress total number of packages message
+
+-z and -f are mutually exclusive.
 
 EOF
 
@@ -34,8 +35,22 @@ is_int () {
     test "$1" -eq "$1" 2>/dev/null
 }
 
+is_natural () {
+    is_int "$1" && [[ $1 -gt 0 ]]
+}
+
+smart_zcat() {
+    local cmd=cat
+
+    if [[ $1 == *.gz ]]; then
+        cmd=zcat
+    fi
+
+    $cmd "$1"
+}
+
 log_lines () {
-    tac "$1" |\
+    tac |\
         grep -oP '(?<=^Install: ).+' |\
         sed -r 's/\([^)]+\)//g;s/ *, */ /g'
 }
@@ -64,20 +79,43 @@ make_hint () {
 }
 
 main () {
-    local arg quiet index=0 log=/var/log/apt/history.log
+    local quiet index=0 prefix=/var/log/apt
 
     # termux
     if [[ -n $PREFIX ]]; then
-        log="$PREFIX"$log
+        prefix="$PREFIX"$prefix
     fi
 
-    while getopts ':i:f:qh' arg; do
+    local log=$prefix/history.log
+
+    local arg opt_set=
+    while getopts ':i:z:f:qh' arg; do
+        opt_set=${opt_set}$arg
+
+        if [[ $opt_set == *z* && $opt_set == *f* ]]; then
+            bye -z and -f are mutually exclusive
+        fi
+
         case $arg in
             i)
                 index=$OPTARG
-                if ! is_int "$index" || [[ $index -lt 1 ]]; then
+                if ! is_natural "$index"; then
                     bye -i value must be natural
                 fi
+                ;;
+            z)
+                local t=$OPTARG
+                if ! is_natural "$t"; then
+                    bye -z value must be natural
+                fi
+
+                log=$prefix/history.log.$t.gz
+
+                if [[ ! -f $log ]]; then
+                    bye Rotated log \#$t doesnt exist
+                fi
+
+                unset t
                 ;;
             f)
                 log=$OPTARG
@@ -116,7 +154,9 @@ main () {
         esac
     done
 
-    log_lines "$log" | {
+    unset arg opt_set
+
+    smart_zcat "$log" | log_lines | {
         if [[ $index -gt 0 ]]; then
             line=$(sed -n ${index}p)
 
