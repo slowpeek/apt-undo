@@ -1,4 +1,3 @@
-
 * Why
 
 The main idea behind the script is when you quickly install, use and
@@ -82,9 +81,123 @@ from =apt= log.
 + -iN :: Pick =N='th install event from =apt= log. =N=1= for the most
   recent event.
 + -f <file> :: Use a custom log instead of
-  =/var/log/apt/history.log=. It could be used for example when apt
-  log got rotated like this:
-  #+begin_example
-    zcat /var/log/apt/history.log.1.gz | apt-undo.sh -f-
-  #+end_example
+  =/var/log/apt/history.log=. The log could be either a plaintext file
+  or a gz-compressed one (the =.gz= extension is mandatory). There is
+  no need to use this option to process rotated apt logs since there
+  is =-z= option for that.
++ -zN :: Operate on =N='th rotated log in default location.
 + -q :: Suppress total number of packages message.
+
+* Usage
+
+*Show summaries for all install events from the default log:*
+
+#+begin_example
+  apt-undo.sh
+
+  1   lrzsz:amd64 minicom:amd64
+  2   gocryptfs:amd64
+  3   qalc:amd64
+  4   linux-modules-5.8.0-55-generic:amd64 +4
+  5   zeitgeist-datahub:amd64 zeitgeist-core:amd64 libgee-0.8-2:amd64 +6
+  ...
+#+end_example
+
+*Show summaries for all install events from the most recent rotated
+log:*
+
+#+begin_example
+  apt-undo.sh -z1
+
+  1   libpcre2-32-0:amd64 libselinux1-dev:amd64 libpcre2-dev:amd64 +4
+  2   libltdl-dev:amd64 autotools-dev:amd64 libsub-override-perl:amd64 +18
+  3   keepassxc:amd64
+  4   libpthread-stubs0-dev:amd64 libxcb1-dev:amd64 +5
+  5   debootstrap:amd64
+  ...
+#+end_example
+
+*Show summaries for all install events from some file:*
+
+#+begin_example
+  # local file
+  apt-undo.sh -f some.log
+
+  1   python3-pyxattr:amd64 rtmpdump:amd64 youtube-dl:amd64
+  2   libkf5konq6:amd64 libkf5konq-data:amd64 konqueror:amd64 kfind:amd64
+  3   liblinear4:amd64 nmap:amd64 lua-lpeg:amd64 nmap-common:amd64
+  4   thunderbird:amd64
+  5   linux-image-5.8.0-44-generic:amd64 +4
+  ...
+
+  # local compressed file
+  apt-undo.sh -f some.compressed.log.gz
+
+  1   libnvidia-compute-455:amd64 libnvidia-compute-455:i386 +19
+  2   libnvidia-compute-450:amd64 libnvidia-compute-450:i386 +19
+  3   libnvidia-compute-455:amd64 libnvidia-compute-455:i386 +20
+  4   libnetaddr-ip-perl:amd64 libsocket6-perl:amd64 geoip-bin:amd64
+  5   libnvidia-compute-450:amd64 libnvidia-compute-450:i386 +20
+  ...
+
+  # remote file
+  ssh user@host cat /var/log/apt/history.log | apt-undo.sh -f-
+
+  1   linux-image-5.8.0-48-generic:amd64 +4
+  2   byobu:amd64 gawk:amd64 python3-newt:amd64 libsigsegv2:amd64
+  3   linux-image-5.8.0-45-generic:amd64 +4
+  4   dctrl-tools:amd64
+  5   xserver-xorg-video-dummy:amd64 python3-dns:amd64 +32
+  ...
+#+end_example
+
+*List all packages from the most recent install event:*
+
+#+begin_example
+  apt-undo.sh -i1
+
+  Total number of packages: 9
+  zeitgeist-datahub:amd64 zeitgeist-core:amd64 libgee-0.8-2:amd64
+  libdee-1.0-4:amd64 zeitgeist:amd64 libtelepathy-glib0:amd64
+  libzeitgeist-2.0-0:amd64 libkeybinder-3.0-0:amd64 synapse:amd64
+#+end_example
+
+*Check what apt would uninstall while undoing the most recent install
+event:*
+
+#+begin_example
+  apt-undo.sh -i1 | sudo xargs apt purge
+
+  Total number of packages: 9
+  Reading package lists... Done
+  Building dependency tree
+  Reading state information... Done
+  The following packages will be REMOVED:
+    libdee-1.0-4* libgee-0.8-2* libkeybinder-3.0-0* libtelepathy-glib0*
+    libzeitgeist-2.0-0* synapse* zeitgeist* zeitgeist-core*
+    zeitgeist-datahub*
+  0 upgraded, 0 newly installed, 9 to remove and 0 not upgraded.
+  After this operation, 6,846 kB disk space will be freed.
+  Do you want to continue? [Y/n] Abort.
+#+end_example
+
+*Undo the most recent install event (always be careful with "-y"):*
+
+#+begin_example
+  apt-undo.sh -i1 | sudo xargs apt purge -y
+
+  Total number of packages: 9
+  Reading package lists... Done
+  Building dependency tree
+  Reading state information... Done
+  The following packages will be REMOVED:
+    libdee-1.0-4* libgee-0.8-2* libkeybinder-3.0-0* libtelepathy-glib0*
+    libzeitgeist-2.0-0* synapse* zeitgeist* zeitgeist-core*
+    zeitgeist-datahub*
+  0 upgraded, 0 newly installed, 9 to remove and 0 not upgraded.
+  After this operation, 6,846 kB disk space will be freed.
+  (Reading database ... 277775 files and directories currently installed.)
+  Removing zeitgeist (1.0.2-3ubuntu2) ...
+  Removing zeitgeist-datahub (1.0.2-3ubuntu2) ...
+  ...
+#+end_example
