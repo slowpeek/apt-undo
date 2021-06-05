@@ -88,6 +88,8 @@ from =apt= log.
 + -zN :: Operate on =N='th rotated log in default location.
 + -q :: Suppress total number of packages message.
 
+=-z= and =-f= are mutually exclusive.
+
 * Usage
 
 *Show summaries for all install events from the default log:*
