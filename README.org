@@ -87,6 +87,9 @@ from =apt= log.
   is =-z= option for that.
 + -zN :: Operate on =N='th rotated log in default location.
 + -q :: Suppress total number of packages message.
++ -d :: Process upgraded packages, rather than newly installed items.
+  This is intended to support downgrading of packages to their
+  previously installed version.
 
 =-z= and =-f= are mutually exclusive.
 
@@ -202,4 +205,42 @@ event:*
   Removing zeitgeist (1.0.2-3ubuntu2) ...
   Removing zeitgeist-datahub (1.0.2-3ubuntu2) ...
   ...
+#+end_example
+
+*List all packages from the most recent upgrade event:*
+
+#+begin_example
+apt-undo.sh -d -i1
+Total number of packages: 2
+dnsmasq:amd64=2.84-1ubuntu2 dnsmasq-base:amd64=2.84-1ubuntu2
+#+end_example
+
+*Undo the most recent upgrade event (always be careful with "-y"):*
+
+#+begin_example
+$ apt-undo.sh -d -i1 -q | sudo xargs apt install -y --allow-downgrades
+Reading package lists... Done
+Building dependency tree... Done
+Reading state information... Done
+Suggested packages:
+  resolvconf
+The following packages will be DOWNGRADED:
+  dnsmasq dnsmasq-base
+0 upgraded, 0 newly installed, 2 downgraded, 0 to remove and 0 not upgraded.
+Need to get 344 kB of archives.
+After this operation, 4,096 B disk space will be freed.
+Get:1 http://us.archive.ubuntu.com/ubuntu hirsute/main amd64 dnsmasq-base amd64 2.84-1ubuntu2 [325 kB]
+Get:2 http://us.archive.ubuntu.com/ubuntu hirsute/universe amd64 dnsmasq all 2.84-1ubuntu2 [18.3 kB]
+Fetched 344 kB in 1s (562 kB/s)
+dpkg: warning: downgrading dnsmasq-base from 2.84-1ubuntu2.1 to 2.84-1ubuntu2
+(Reading database ... 267773 files and directories currently installed.)
+Preparing to unpack .../dnsmasq-base_2.84-1ubuntu2_amd64.deb ...
+Unpacking dnsmasq-base (2.84-1ubuntu2) over (2.84-1ubuntu2.1) ...
+dpkg: warning: downgrading dnsmasq from 2.84-1ubuntu2.1 to 2.84-1ubuntu2
+Preparing to unpack .../dnsmasq_2.84-1ubuntu2_all.deb ...
+Unpacking dnsmasq (2.84-1ubuntu2) over (2.84-1ubuntu2.1) ...
+Setting up dnsmasq-base (2.84-1ubuntu2) ...
+Setting up dnsmasq (2.84-1ubuntu2) ...
+Processing triggers for man-db (2.9.4-2) ...
+Processing triggers for dbus (1.12.20-1ubuntu3) ...
 #+end_example

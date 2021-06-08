@@ -1,10 +1,11 @@
 #!/bin/bash
 
-# Walk backwards through "^Install: " lines in apt log and show
-# numbered summaries of installed packages per action. With "-iN" show
-# a full list of installed packages for the line N. Add "-q" to
-# suppress total number of packages message. The message is written to
-# stderr so it doesnt corrupt the package list anyways.
+# Walk backwards through "^Install: " lines in apt log, or "^Upgrade: "
+# if the "-d" (downgrade) option is given, and show numbered summaries
+# of installed packages per action. With "-iN" show a full list of
+# installed packages for the line N. Add "-q" to suppress total number
+# of packages message. The message is written to stderr so it doesnt
+# corrupt the package list anyways.
 #
 # Example: get list of packages to remove to undo last apt install
 #
@@ -18,12 +19,13 @@ bye () {
 
 usage () {
     cat <<EOF
-${0##*/} [-iN] [-q] [-zN | -f <path>] [-h]
+${0##*/} [-iN] [-q] [-zN | -f <path>] [-d] [-h]
 
 >> use -iN to show full list of packages for line N
 >> use -f <path> to supply custom log. '-' states for stdin
 >> use -zN to operate on N'th rotated log in default location
 >> use -q with -iN to suppress total number of packages message
+>> use -d (downgrade) to process upgraded packages
 
 -z and -f are mutually exclusive.
 
@@ -50,9 +52,22 @@ smart_zcat() {
 }
 
 log_lines () {
-    tac |\
-        grep -oP '(?<=^Install: ).+' |\
-        sed -r 's/\([^)]+\)//g;s/ *, */ /g'
+    if [[ ${1:-install} == install ]]; then
+        # packages to remove
+        tac |\
+            grep -oP '(?<=^Install: ).+' |\
+            sed -r 's/\([^)]+\)//g;s/ *, */ /g'
+    else
+        # packages to downgrade
+        tac |\
+            grep -oP '(?<=^Upgrade: ).+' |\
+            awk -F '), *' '{ for ( i=1; i<=NF; i++ ) {
+                                split( $i, a, /[ ,(]+/ )
+                                printf( "%s=%s ", a[1], a[2] )
+                             }
+                             print ""
+                           }'
+    fi
 }
 
 narg () {
@@ -79,7 +94,7 @@ make_hint () {
 }
 
 main () {
-    local quiet index=0 prefix=/var/log/apt
+    local quiet index=0 prefix=/var/log/apt lookfor=install
 
     # termux
     if [[ -n $PREFIX ]]; then
@@ -89,7 +104,7 @@ main () {
     local log=$prefix/history.log
 
     local arg opt_set=
-    while getopts ':i:z:f:qh' arg; do
+    while getopts ':i:z:f:qhd' arg; do
         opt_set=${opt_set}$arg
 
         if [[ $opt_set == *z* && $opt_set == *f* ]]; then
@@ -145,6 +160,9 @@ main () {
                 usage
                 exit
                 ;;
+            d)
+                lookfor=downgrade
+                ;;
             :)
                 bye Option requires value: -$OPTARG
                 ;;
@@ -156,7 +174,7 @@ main () {
 
     unset arg opt_set
 
-    smart_zcat "$log" | log_lines | {
+    smart_zcat "$log" | log_lines $lookfor | {
         if [[ $index -gt 0 ]]; then
             line=$(sed -n ${index}p)
 
