@@ -1,0 +1,308 @@
+#!/usr/bin/env bash
+
+# MIT license (c) 2021-2024 https://github.com/slowpeek
+# Homepage: https://github.com/slowpeek/apt-undo
+# About: Undo install events from apt log
+
+set -eu -o pipefail
+
+SCRIPT_VERSION=1.0b+git
+
+if [[ -t 2 ]]; then
+    t_green=$'\e[32m'
+    t_red=$'\e[31m'
+    t_yellow=$'\e[33m'
+    t_reset=$'\e(B\e[m'
+else
+    t_green=
+    t_red=
+    t_yellow=
+    t_reset=
+fi
+
+bye() {
+    echo "${t_red}error:${t_reset}" "$1" >&2
+    exit 1
+}
+
+version() {
+    echo "apt-undo ${SCRIPT_VERSION}"
+    exit
+}
+
+usage() {
+    cat <<EOF
+Usage: apt-undo [options]
+
+Without any options, show numbered summaries for all install events from
+/var/log/apt/history.log
+
+Options:
+  -f path                    Use a custom log (plaintext or gz-compressed)
+                             instead of the default one. -z is a special case of
+                             -f tailored for rotated logs. '-f -' stands for
+                             stdin
+
+  -h, --help                 Show usage
+  -i N                       Show list of packages for N'th install event
+
+  -l                         When called without -i, print full package lists
+                             instead of summaries
+
+  -q                         Be less verbose: suppress package count with -i and
+                             side-by-side comparison with -t
+
+  -t                         Requires -i. Check what would apt remove undoing
+                             the install event. By default (without -q), print
+                             side-by-side comparison of requested vs actual
+                             removal lists to stderr. If there are any
+                             unrequested packages to be removed, exit with error
+                             without printing anything to stdout. This option
+                             assumes the log's origin is the system apt-undo
+                             runs on. It is pointless to use -t on /foreign/
+                             logs
+
+  -V, --version              Show version
+  -z N                       Operate on N'th rotated log under /var/log/apt/
+
+-z and -f are mutually exclusive.
+
+Homepage https://github.com/slowpeek/apt-undo
+EOF
+
+    exit
+}
+
+is_natural() {
+    [[ $1 == [1-9]* ]] && test "$1" -eq "$1" 2>/dev/null
+}
+
+check_empty() {
+    [[ -n "$2" ]] || bye "Empty $1 value"
+}
+
+check_natural() {
+    is_natural "$2" || bye "$1 value must be a whole number over zero"
+}
+
+cat_zcat() {
+    local magic
+    IFS= read -r magic < <(od -An -tx1 -N2)
+
+    local cmd='cat'
+    [[ ! ${magic// /} == 1f8b ]] || cmd='zcat'
+
+    {
+        printf '%b' "${magic// /\\x}"
+        cat
+    } | "$cmd"
+}
+
+log_lines() {
+    tac | sed -nE '/^Install:/{s/^\S+ //;s/ \([^)]+\),?//g;p}'
+}
+
+pkg_list_summary() {
+    local l=76 total=$# pool=()
+
+    while (( $# )); do
+        if (( (l -= ${#1} + 1) < 0 )); then
+            pool+=("+$(( total - ${#pool[@]} ))")
+            break
+        fi
+
+        pool+=("$1")
+        shift
+    done
+
+    echo "${pool[@]}"
+}
+
+_pkg_to_remove() {
+    LC_ALL=C apt-get remove -o APT::Get::Show-Versions=false -s "$@" |
+        awk '/^The following packages will be REMOVED:/ {p=1; next} p && /^[^ ]/ {exit} p'
+}
+
+pkg_to_remove() {
+    local arch
+    arch=$(dpkg --print-architecture)
+
+    local pkg
+    for pkg in $(_pkg_to_remove "$@"); do
+        [[ $pkg == *:* ]] || pkg+=:$arch
+        echo "$pkg"
+    done
+}
+
+# Upper: l1, l2, flip, items
+add_items() {
+    local -n l
+    (( flip^=1 )) && l=l1 || l=l2
+    (( ${#1} <= l )) || l=${#1}
+
+    items+=("${2:-<n>}${1}</>")
+}
+
+# Upper: col1, col2, quiet
+compare_col1_col2() {
+    local i=0 j=0 m=${#col1[@]} n=${#col2[@]}
+    local l1=0 l2=0
+    local flip=0 delta=0
+
+    while (( i<m && j<n )); do
+        if [[ ${col1[i]} == "${col2[j]}" ]]; then
+            add_items "${col1[i++]}" '<g>'
+            add_items "${col2[j++]}" '<g>'
+        elif [[ ${col1[i]} < "${col2[j]}" ]]; then
+            add_items "${col1[i++]}" '<y>'
+            add_items --
+        else
+            (( ++delta ))
+            add_items --
+            add_items "${col2[j++]}" '<r>'
+        fi
+    done
+
+    for (( ; i<m; i++ )); do
+        add_items "${col1[i]}" '<y>'
+        add_items --
+    done
+
+    for (( ; j<n; j++ )); do
+        (( ++delta ))
+        add_items --
+        add_items "${col2[j]}" '<r>'
+    done
+
+    if [[ $quiet == n ]]; then
+        local sed_colorize=(
+            '<g>' "${t_green}"
+            '<r>' "${t_red}"
+            '<y>' "${t_yellow}"
+            '<n>' ''
+            '</>' "${t_reset}"
+        )
+
+        echo
+        printf "%-$((l1+7))s %-$((l2+6))s\n" "${items[@]}" |
+            sed -E "$(printf 's,%s,%s,g;' "${sed_colorize[@]}")"
+        echo
+    fi
+
+    (( ! delta )) || return 1
+}
+
+main() {
+    # In termux everything is under $PREFIX/
+    local prefix=${PREFIX-}/var/log/apt
+
+    local opts
+    # jetopt f: hhelp i: l q t Vversion z:
+    opts=$(getopt -o f:hi:lqtVz: -l help,version -- "$@") || exit
+    eval set -- "$opts"
+
+    local log=$prefix/history.log quiet=n index=0 long=n test=n
+    local mask=0
+
+    while (( $# )); do
+        case $1 in
+            -h|--help)
+                usage ;;
+            -V|--version)
+                version ;;
+            --)
+                shift
+                break ;;
+
+            -f)
+                (( mask |= 1 ))
+
+                check_empty "$1" "$2"
+                log=$2
+                shift 2 ;;
+
+            -i)
+                check_natural "$1" "$2"
+                index=$2
+                shift 2 ;;
+
+            -l)
+                long=y
+                shift ;;
+
+            -q)
+                quiet=y
+                shift ;;
+
+            -t)
+                test=y
+                shift ;;
+
+            -z)
+                (( mask |= 2 ))
+
+                check_natural "$1" "$2"
+
+                log=$prefix/history.log.$2.gz
+                if [[ ! -f $log ]]; then
+                    log=${log%.gz}
+                    [[ -f $log ]] || bye "Rotated log #${2} doesnt exist"
+                fi
+
+                shift 2 ;;
+        esac
+    done
+
+    (( mask < 3 )) || bye '-z and -f are mutually exclusive'
+    [[ $test == n ]] || (( index )) || bye '-t requires -i value set'
+    (( ! $# )) || bye 'This tool does not accept any non-option args'
+
+    if [[ $log != - ]]; then
+        [[ -f $log ]] || bye "No such file: ${log}"
+        [[ -r $log ]] || bye "Not readable: ${log}"
+
+        exec < "$log"
+    fi
+
+    # --
+
+    {
+        local line
+
+        if (( index )); then
+            {
+                read -r line
+                read -r _ ||
+                    bye "-i value is too big, there are only ${line} records in the log"
+            } < <(sed -n "${index}p;$=")
+
+            [[ $quiet == y ]] ||
+                echo "Package count: $(wc -w <<< "$line")" >&2
+
+            if [[ $test == y ]]; then
+                local col1
+                # shellcheck disable=SC2086
+                readarray -t col1 < <(printf '%s\n' $line | sort)
+
+                local col2
+                # shellcheck disable=SC2086
+                readarray -t col2 < <(pkg_to_remove $line | sort)
+
+                compare_col1_col2 >&2 ||
+                    bye 'Extra packages to be removed'
+            fi
+
+            echo "$line"
+        else
+            local printer=pkg_list_summary
+            [[ $long == n ]] || printer='echo'
+
+            while read -r line; do
+                # shellcheck disable=SC2086
+                "$printer" $line
+            done | nl -w3 -nln -s ' '
+        fi
+    } < <(cat_zcat | log_lines)
+}
+
+[[ ! ${BASH_SOURCE[0]} == "$0" ]] || main "$@"
