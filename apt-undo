@@ -59,8 +59,7 @@ Options:
                              unrequested packages to be removed, exit with error
                              without printing anything to stdout. This option
                              assumes the log's origin is the system apt-undo
-                             runs on. It is pointless to use -t on /foreign/
-                             logs
+                             runs on. It is pointless to use -t on foreign logs
 
   -V, --version              Show version
   -z N                       Operate on N'th rotated log under /var/log/apt/
