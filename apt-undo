@@ -84,19 +84,6 @@ check_natural() {
     is_natural "$2" || bye "$1 value must be a whole number over zero"
 }
 
-cat_zcat() {
-    local magic
-    IFS= read -r magic < <(od -An -tx1 -N2)
-
-    local cmd='cat'
-    [[ ! ${magic// /} == 1f8b ]] || cmd='zcat'
-
-    {
-        printf '%b' "${magic// /\\x}"
-        cat
-    } | "$cmd"
-}
-
 log_lines() {
     tac | sed -nE '/^Install:/{s/^\S+ //;s/ \([^)]+\),?//g;p}'
 }
@@ -301,7 +288,7 @@ main() {
                 "$printer" $line
             done | nl -w3 -nln -s ' '
         fi
-    } < <(cat_zcat | log_lines)
+    } < <(zcat -f | log_lines)
 }
 
 [[ ! ${BASH_SOURCE[0]} == "$0" ]] || main "$@"
