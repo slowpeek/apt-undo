@@ -52,12 +52,12 @@ gets removed.
 
 * Options
 
-Without any options, show numbered summaries for all install events from
-=/var/log/apt/history.log=.
+Without any options, show numbered summaries for all install events from the
+default log.
 
 - =-f path= :: Use a custom log (plaintext or gz-compressed) instead of the
-  default one. =-z= is a special case of =-f= tailored for rotated logs. =-f -=
-  stands for stdin
+  default one. =-z= is a special case of =-f= tailored for gzipped rotated
+  logs. =-f -= stands for stdin
 - =-h, --help= :: Show usage
 - =-i N= :: Show list of packages for =N='th install event
 - =-l= :: When called without =-i=, print full package lists instead of
@@ -71,7 +71,7 @@ Without any options, show numbered summaries for all install events from
   assumes the log's origin is the system =apt-undo= runs on. It is pointless to
   use =-t= on /foreign/ logs
 - =-V, --version= :: Show version
-- =-z N= :: Operate on =N='th rotated log under =/var/log/apt/=
+- =-z N= :: Operate on =N='th gzipped rotated log in the default location
 
 =-z= and =-f= are mutually exclusive.
 

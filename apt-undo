@@ -34,14 +34,14 @@ usage() {
     cat <<EOF
 Usage: apt-undo [options]
 
-Without any options, show numbered summaries for all install events from
-/var/log/apt/history.log
+Without any options, show numbered summaries for all install events from the
+default log.
 
 Options:
   -f path                    Use a custom log (plaintext or gz-compressed)
                              instead of the default one. -z is a special case of
-                             -f tailored for rotated logs. '-f -' stands for
-                             stdin
+                             -f tailored for gzipped rotated logs. '-f -' stands
+                             for stdin
 
   -h, --help                 Show usage
   -i N                       Show list of packages for N'th install event
@@ -62,7 +62,8 @@ Options:
                              runs on. It is pointless to use -t on foreign logs
 
   -V, --version              Show version
-  -z N                       Operate on N'th rotated log under /var/log/apt/
+  -z N                       Operate on N'th gzipped rotated log in the default
+                             location
 
 -z and -f are mutually exclusive.
 
@@ -228,13 +229,7 @@ main() {
                 (( mask |= 2 ))
 
                 check_natural "$1" "$2"
-
                 log=$prefix/history.log.$2.gz
-                if [[ ! -f $log ]]; then
-                    log=${log%.gz}
-                    [[ -f $log ]] || bye "Rotated log #${2} doesnt exist"
-                fi
-
                 shift 2 ;;
         esac
     done
