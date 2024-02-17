@@ -4,6 +4,12 @@
 # Homepage: https://github.com/slowpeek/apt-undo
 # About: Undo install events from apt log
 
+case "$BASH_VERSION" in
+    [2-3].*|4.[0-2]*)
+        echo "This script requires bash 4.3, yours is $BASH_VERSION"
+        exit 1 ;;
+esac
+
 set -eu -o pipefail
 
 SCRIPT_VERSION=1.0b+git
