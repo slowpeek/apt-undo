@@ -46,9 +46,9 @@ The script could be safely used to /pop/ a series of install events off =apt=
 random install event, caution should be taken since some packages installed
 after the event could depend on it. Hence blindly undoing the event could result
 in extra packages removal. At least be sure to check if /Package count: X/ and
-=apt='s /Y to remove/ match. When the log belongs to the system =apt-undo= runs
-on, it is recommended to always use =-i= with =-t= to make sure nothing extra
-gets removed.
+=apt='s /Y to remove/ match. *When the log belongs to the system* =apt-undo=
+*runs on, it is recommended to always use* =-i= *with* =-t= *to make sure
+nothing extra gets removed*.
 
 * Options
 
